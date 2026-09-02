@@ -1,0 +1,10 @@
+node_modules/
+.next/
+coverage/
+*.xlsx
+*.xls
+*.csv
+!src/**/*.csv
+.env*
+!.env.example
+*.local
