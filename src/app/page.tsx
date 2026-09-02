@@ -32,30 +32,28 @@ const issueTone: Record<Severity, "info" | "warning" | "critical"> = {
   critical: "critical",
 };
 export default function Home() {
-  const [account, setAccount] = useState<Account>("Olist 1"),
-    [channel, setChannel] = useState<Channel>("mercado-livre-full"),
+  const [account, setAccount] = useState<Account | "">(""),
+    [channel, setChannel] = useState<Channel | "">(""),
     [files, setFiles] = useState<ParsedFile[]>([]),
     [loading, setLoading] = useState(false),
     [tab, setTab] = useState("Resumo"),
     [severity, setSeverity] = useState<Severity | "all">("all"),
     [query, setQuery] = useState(""),
-    [notice, setNotice] = useState("");
+    [notice, setNotice] = useState(""),
+    [noticeError, setNoticeError] = useState(false);
   const add = async (selected: FileList) => {
+    if (!account || !channel) { setNoticeError(true); setNotice("Selecione a conta Olist e o marketplace."); return; }
     setLoading(true);
     try {
       for (const file of Array.from(selected)) {
         if (!/\.(xlsx|xls|csv)$/i.test(file.name)) continue;
         const parsed = await parseSpreadsheet(file, account, channel);
-        setFiles((old) => {
-          if (old.some((x) => x.id === parsed.id)) {
-            setNotice("Arquivo já está no lote.");
-            return old;
-          }
-          return [...old, parsed];
-        });
+        if (files.some((x) => x.id === parsed.id)) { setNoticeError(true); setNotice("Arquivo já está no lote."); return; }
+        setFiles((old) => [...old, parsed]);
+        setAccount(""); setChannel(""); setNoticeError(false); setNotice("Planilha importada com sucesso.");
       }
     } catch {
-      setNotice("Não foi possível ler esta planilha.");
+      setNoticeError(true); setNotice("Não foi possível ler esta planilha.");
     } finally {
       setLoading(false);
     }
@@ -121,6 +119,7 @@ export default function Home() {
                       value={account}
                       onChange={(e) => setAccount(e.target.value as Account)}
                     >
+                      <option value="">Selecione</option>
                       {accounts.map((x) => (
                         <option key={x}>{x}</option>
                       ))}
@@ -137,8 +136,6 @@ export default function Home() {
                       <button
                         className="channel-option channel-option--ml"
                         aria-pressed={channel === "mercado-livre-full"}
-                        aria-describedby={files.length ? "marketplace-lock" : undefined}
-                        disabled={files.length > 0}
                         onClick={() => setChannel("mercado-livre-full")}
                       >
                         Mercado Livre + Full
@@ -146,14 +143,11 @@ export default function Home() {
                       <button
                         className="channel-option channel-option--shopee"
                         aria-pressed={channel === "shopee"}
-                        aria-describedby={files.length ? "marketplace-lock" : undefined}
-                        disabled={files.length > 0}
                         onClick={() => setChannel("shopee")}
                       >
                         Shopee
                       </button>
                     </div>
-                    {files.length > 0 && <span id="marketplace-lock" className="file-meta">Marketplace fixado para este lote.</span>}
                   </div>
                 </div>
                 <FileDropzone onFiles={add} loading={loading} />
@@ -411,11 +405,7 @@ export default function Home() {
           </section>
         )}
         <footer className="footer">Dados processados neste dispositivo</footer>
-        {notice && (
-          <div className="ui-toast" role="status">
-            {notice}
-          </div>
-        )}
+        {notice && <div className="ui-toast" role="alert"><Icon name={noticeError ? "alert" : "check"} />{notice}</div>}
       </main>
     </div>
   );
