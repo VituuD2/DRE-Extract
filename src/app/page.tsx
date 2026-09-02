@@ -206,6 +206,11 @@ export default function Home() {
                 value={tab}
                 onChange={setTab}
               />
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+                <Button variant="primary" onClick={() => exportReport(result.summary, result.orders, allItems, result.issues)}>
+                  <Icon name="download" />Exportar resultados
+                </Button>
+              </div>
             </div>
             {tab === "Resumo" && (
               <div className="section">
