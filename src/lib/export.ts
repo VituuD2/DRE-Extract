@@ -1,2 +1,27 @@
-import * as XLSX from "xlsx"; import { Issue, Item, Order, Summary } from "@/domain/types";
-export function exportReport(summary: Summary, orders: Order[], items: Item[], issues: Issue[]) { const wb=XLSX.utils.book_new(); const add=(name:string,data:unknown[])=>XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(data),name); add("Resumo",[{Faturamento:summary.revenueCents/100,CMV:summary.cmvCents/100,Comissão:summary.commissionCents/100,Frete:summary.shippingCents/100,Resultado:summary.resultCents/100,"Margem (%)":summary.margin}]);add("Pedidos",orders.map(o=>({Pedido:o.orderNumber,Data:o.date,Faturamento:o.revenueCents/100,CMV:o.cmvCents/100,Comissão:o.commissionCents/100,Frete:(o.shippingCents??0)/100,"Itens":o.itemCount})));add("Itens",items.map(i=>({Pedido:i.orderNumber,Data:i.saleDate,Produto:i.product,Quantidade:i.quantity,"Custo unitário":i.unitCostCents/100,"Comissão":(i.commissionCents??0)/100})));add("Pendências",issues.map(i=>({Severidade:i.severity,Tipo:i.type,Arquivo:i.file,Pedido:i.orderNumber,Linha:i.line,Campo:i.field,Mensagem:i.message,Impacto:i.impact}))); XLSX.writeFile(wb,"dre-olist.xlsx"); }
+import * as XLSX from "xlsx";
+import { aggregate } from "@/domain/aggregate";
+import type { Channel, Issue, Item, Order, Summary } from "@/domain/types";
+
+const channels: Channel[] = ["mercado-livre-full", "shopee"];
+const labels: Record<Channel, string> = { "mercado-livre-full": "Mercado Livre", shopee: "Shopee" };
+const sheetPrefix: Record<Channel, string> = { "mercado-livre-full": "ML", shopee: "Shopee" };
+const money = (cents: number | undefined) => (cents ?? 0) / 100;
+
+export function exportReport(_summary: Summary, orders: Order[], items: Item[], issues: Issue[]) {
+  const workbook = XLSX.utils.book_new();
+  const add = (name: string, data: Record<string, unknown>[]) => XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(data), name);
+  const active = channels.filter(channel => items.some(item => item.channel === channel));
+
+  add("Resumo por canal", active.map(channel => {
+    const summary = aggregate(items.filter(item => item.channel === channel), channel).summary;
+    return { Marketplace: labels[channel], Faturamento: money(summary.revenueCents), CMV: money(summary.cmvCents), Comissão: money(summary.commissionCents), "Frete pago empresa": channel === "shopee" ? "Incluído na comissão" : money(summary.shippingCents), Resultado: money(summary.resultCents), "Margem (%)": summary.margin, Pedidos: summary.orders, Itens: summary.items };
+  }));
+
+  for (const channel of active) {
+    const prefix = sheetPrefix[channel]; const marketOrders = orders.filter(order => order.channel === channel); const marketItems = items.filter(item => item.channel === channel); const marketIssues = issues.filter(issue => issue.channel === channel);
+    add(`${prefix} Pedidos`, marketOrders.map(order => ({ Pedido: order.orderNumber, Conta: order.account, Data: order.date, Faturamento: money(order.revenueCents), CMV: money(order.cmvCents), Comissão: money(order.commissionCents), "Frete pago empresa": channel === "shopee" ? "Incluído na comissão" : money(order.shippingCents), Itens: order.itemCount })));
+    add(`${prefix} Itens`, marketItems.map(item => ({ Pedido: item.orderNumber, Conta: item.account, Data: item.saleDate, Produto: item.product, Quantidade: item.quantity, "Custo unitário": money(item.unitCostCents), Comissão: money(item.commissionCents) })));
+    add(`${prefix} Pendências`, marketIssues.map(issue => ({ Severidade: issue.severity, Tipo: issue.type, Arquivo: issue.file, Pedido: issue.orderNumber, Linha: issue.line, Campo: issue.field, Mensagem: issue.message, Impacto: issue.impact })));
+  }
+  XLSX.writeFile(workbook, "dre-olist.xlsx");
+}
