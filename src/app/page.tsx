@@ -7,14 +7,458 @@ import type { Account, Channel, ParsedFile, Severity } from "@/domain/types";
 import { exportReport } from "@/lib/export";
 import { parseSpreadsheet } from "@/lib/parser";
 import { BrandMark } from "@/components/brand";
-import { Button, Card, EmptyState, ErrorBanner, FileDropzone, Icon, IconButton, Input, MetricCard, Select, StatusBadge, Tabs } from "@/components/ui";
+import {
+  Button,
+  Card,
+  EmptyState,
+  ErrorBanner,
+  FileDropzone,
+  Icon,
+  IconButton,
+  Input,
+  MetricCard,
+  Select,
+  StatusBadge,
+  Tabs,
+} from "@/components/ui";
 const accounts: Account[] = ["Olist 1", "Olist 2", "Olist 3"];
-const channelLabel: Record<Channel, string> = { "mercado-livre-full": "Mercado Livre + Full", shopee: "Shopee" };
-const issueTone: Record<Severity, "info" | "warning" | "critical"> = { info: "info", warning: "warning", critical: "critical" };
+const channelLabel: Record<Channel, string> = {
+  "mercado-livre-full": "Mercado Livre + Full",
+  shopee: "Shopee",
+};
+const issueTone: Record<Severity, "info" | "warning" | "critical"> = {
+  info: "info",
+  warning: "warning",
+  critical: "critical",
+};
 export default function Home() {
- const [account,setAccount]=useState<Account>("Olist 1"),[channel,setChannel]=useState<Channel>("mercado-livre-full"),[files,setFiles]=useState<ParsedFile[]>([]),[loading,setLoading]=useState(false),[tab,setTab]=useState("Resumo"),[severity,setSeverity]=useState<Severity|"all">("all"),[query,setQuery]=useState(""),[notice,setNotice]=useState("");
- const add=async(selected:FileList)=>{setLoading(true);try{for(const file of Array.from(selected)){if(!/\.(xlsx|xls|csv)$/i.test(file.name))continue;const parsed=await parseSpreadsheet(file,account,channel);setFiles(old=>{if(old.some(x=>x.id===parsed.id)){setNotice("Arquivo já está no lote.");return old}return [...old,parsed]})}}catch{setNotice("Não foi possível ler esta planilha.")}finally{setLoading(false)}};
- const result=useMemo(()=>consolidate(files),[files]),allItems=files.flatMap(file=>file.items),review=result.issues.some(i=>i.severity==="critical"),search=query.trim().toLowerCase(); const orders=result.orders.filter(o=>`${o.orderNumber} ${o.file}`.toLowerCase().includes(search)),items=allItems.filter(i=>`${i.orderNumber} ${i.product}`.toLowerCase().includes(search)),issues=result.issues.filter(i=>(severity==="all"||i.severity===severity)&&`${i.orderNumber??""} ${i.product??""} ${i.type}`.toLowerCase().includes(search)); const status=!files.length?"Novo lote":review?"Requer revisão":result.issues.some(i=>i.severity==="warning")?"Com avisos":"Validado";const statusTone=review?"critical":result.issues.some(i=>i.severity==="warning")?"warning":files.length?"success":"info";
- return <div className="app-shell"><header className="topbar"><div className="topbar-inner"><BrandMark label/><div className="top-actions"><StatusBadge tone={statusTone}>{status}</StatusBadge>{files.length>0&&<Button variant="ghost" onClick={()=>setFiles([])}>Limpar lote</Button>}</div></div></header><main className="app-main"><section className="section" aria-labelledby="novo-lote"><div className="section-heading"><h1 id="novo-lote">Novo lote</h1></div><Card elevated main><div style={{padding:20}}><div className="import-grid"><div><label className="ui-control-label">Conta Olist<Select value={account} onChange={e=>setAccount(e.target.value as Account)}>{accounts.map(x=><option key={x}>{x}</option>)}</Select></label><div style={{marginTop:16}}><span className="ui-control-label">Canal</span><div className="channel-switch" role="group" aria-label="Canal" style={{marginTop:6}}><button className="channel-option channel-option--ml" aria-pressed={channel==="mercado-livre-full"} onClick={()=>setChannel("mercado-livre-full")}>Mercado Livre + Full</button><button className="channel-option channel-option--shopee" aria-pressed={channel==="shopee"} onClick={()=>setChannel("shopee")}>Shopee</button></div></div></div><FileDropzone onFiles={add} loading={loading}/></div>{loading&&<div aria-live="polite" style={{marginTop:14}}><StatusBadge tone="info">Processando localmente</StatusBadge></div>}{files.length>0&&<div className="file-list" aria-live="polite">{files.map(file=>{const summary=aggregate(file.items).summary;return <article className="file-row" key={file.id}><div><div className="file-name">{file.name}</div><div className="file-meta">{file.account} · {channelLabel[file.channel]} · {file.sheet} · {file.items.length} linhas · {file.minDate??"—"} a {file.maxDate??"—"}</div><div className="file-summary">Faturamento {formatMoney(summary.revenueCents)} · Resultado {formatMoney(summary.resultCents)}</div></div><IconButton label={`Remover ${file.name}`} onClick={()=>setFiles(old=>old.filter(x=>x.id!==file.id))}><Icon name="trash"/></IconButton></article>})}</div>}</div></Card></section>{files.length===0?<Card className="section"><EmptyState>Adicione uma planilha para começar.</EmptyState></Card>:<section className="section" aria-label="Resultados">{review&&<ErrorBanner/>}<div style={{marginTop:review?18:0}}><Tabs tabs={["Resumo","Pedidos","Itens","Pendências"]} value={tab} onChange={setTab}/></div>{tab==="Resumo"&&<div className="section"><div className="metric-grid"><MetricCard label="Faturamento" value={formatMoney(result.summary.revenueCents)}/><MetricCard label="CMV" value={formatMoney(result.summary.cmvCents)} detail={result.summary.zeroCostLines?<StatusBadge tone="warning">CMV incompleto · {result.summary.zeroCostLines} linhas</StatusBadge>:""} tone={result.summary.zeroCostLines?"warning":undefined}/><MetricCard label="Comissão" value={formatMoney(result.summary.commissionCents)}/><MetricCard label="Frete pago pela empresa" value={formatMoney(result.summary.shippingCents)} detail="Shopee: incluído na comissão"/><MetricCard label="Resultado após custos" value={formatMoney(result.summary.resultCents)}/><MetricCard label="Margem após custos" value={`${result.summary.margin.toFixed(2).replace(".",",")}%`}/><MetricCard label="Pedidos únicos" value={String(result.summary.orders)} detail={`${result.summary.multiLineOrders} pedidos multilinha`}/><MetricCard label="Linhas de itens" value={String(result.summary.items)}/></div><div className="section"><div className="section-heading"><h2>Consolidação</h2></div><DataTable heads={["Conta","Canal","Faturamento","Resultado","Pedidos"]} rows={result.byGroup.map(x=>[x.account,channelLabel[x.channel as Channel],formatMoney(x.summary.revenueCents),formatMoney(x.summary.resultCents),x.summary.orders])} numeric={[2,3,4]}/></div></div>}{tab!=="Resumo"&&<div className="section"><div className="data-toolbar"><Input value={query} onChange={e=>setQuery(e.target.value)} placeholder={tab==="Pendências"?"Buscar pedido, produto ou tipo":"Buscar"} aria-label="Buscar"/>{tab==="Pendências"&&<Select value={severity} onChange={e=>setSeverity(e.target.value as Severity|"all")} aria-label="Severidade"><option value="all">Todas as severidades</option><option value="critical">Erros críticos</option><option value="warning">Avisos</option><option value="info">Informações</option></Select>}{tab!=="Pendências"&&<Button variant="secondary" onClick={()=>exportReport(result.summary,result.orders,allItems,result.issues)}><Icon name="download"/>Exportar</Button>}</div>{tab==="Pedidos"&&<DataTable heads={["Pedido","Data","Faturamento","CMV","Comissão","Frete","Itens"]} numeric={[2,3,4,5,6]} rows={orders.map(o=>[o.orderNumber,o.date??"—",formatMoney(o.revenueCents),formatMoney(o.cmvCents),formatMoney(o.commissionCents),o.channel==="shopee"?"Incluído":formatMoney(o.shippingCents),o.itemCount])} empty="Nenhum pedido encontrado."/>}{tab==="Itens"&&<DataTable heads={["Pedido","Produto","Quantidade","Custo unitário","Comissão"]} numeric={[2,3,4]} rows={items.map(i=>[i.orderNumber,i.product,i.quantity,formatMoney(i.unitCostCents),formatMoney(i.commissionCents)])} empty="Nenhum item encontrado."/>}{tab==="Pendências"&&<Card><div className="issue-list">{issues.length?issues.map((i,n)=><article className="issue" key={`${i.type}-${n}`}><StatusBadge tone={issueTone[i.severity]}>{i.severity==="critical"?"Erro crítico":i.severity==="warning"?"Aviso":"Informação"}</StatusBadge><div><div className="issue-title">{i.type}</div><p className="issue-copy">{i.message}</p><p className="issue-meta">{i.file??"—"} · Pedido {i.orderNumber??"—"} · Linha {i.line??"—"} · {i.impact}</p></div></article>):<EmptyState>Nenhuma pendência com este filtro.</EmptyState>}</div></Card>}</div>}</section>}<footer className="footer">Dados processados neste dispositivo</footer>{notice&&<div className="ui-toast" role="status">{notice}</div>}</main></div>;
+  const [account, setAccount] = useState<Account>("Olist 1"),
+    [channel, setChannel] = useState<Channel>("mercado-livre-full"),
+    [files, setFiles] = useState<ParsedFile[]>([]),
+    [loading, setLoading] = useState(false),
+    [tab, setTab] = useState("Resumo"),
+    [severity, setSeverity] = useState<Severity | "all">("all"),
+    [query, setQuery] = useState(""),
+    [notice, setNotice] = useState("");
+  const add = async (selected: FileList) => {
+    setLoading(true);
+    try {
+      for (const file of Array.from(selected)) {
+        if (!/\.(xlsx|xls|csv)$/i.test(file.name)) continue;
+        const parsed = await parseSpreadsheet(file, account, channel);
+        setFiles((old) => {
+          if (old.some((x) => x.id === parsed.id)) {
+            setNotice("Arquivo já está no lote.");
+            return old;
+          }
+          return [...old, parsed];
+        });
+      }
+    } catch {
+      setNotice("Não foi possível ler esta planilha.");
+    } finally {
+      setLoading(false);
+    }
+  };
+  const result = useMemo(() => consolidate(files), [files]),
+    allItems = files.flatMap((file) => file.items),
+    review = result.issues.some((i) => i.severity === "critical"),
+    search = query.trim().toLowerCase();
+  const orders = result.orders.filter((o) =>
+      `${o.orderNumber} ${o.file}`.toLowerCase().includes(search),
+    ),
+    items = allItems.filter((i) =>
+      `${i.orderNumber} ${i.product}`.toLowerCase().includes(search),
+    ),
+    issues = result.issues.filter(
+      (i) =>
+        (severity === "all" || i.severity === severity) &&
+        `${i.orderNumber ?? ""} ${i.product ?? ""} ${i.type}`
+          .toLowerCase()
+          .includes(search),
+    );
+  const status = !files.length
+    ? "Novo lote"
+    : review
+      ? "Requer revisão"
+      : result.issues.some((i) => i.severity === "warning")
+        ? "Com avisos"
+        : "Validado";
+  const statusTone = review
+    ? "critical"
+    : result.issues.some((i) => i.severity === "warning")
+      ? "warning"
+      : files.length
+        ? "success"
+        : "info";
+  return (
+    <div className="app-shell">
+      <header className="topbar">
+        <div className="topbar-inner">
+          <BrandMark label />
+          <div className="top-actions">
+            <StatusBadge tone={statusTone}>{status}</StatusBadge>
+            {files.length > 0 && (
+              <Button variant="ghost" onClick={() => setFiles([])}>
+                Limpar lote
+              </Button>
+            )}
+          </div>
+        </div>
+      </header>
+      <main className="app-main">
+        <section className="section" aria-labelledby="novo-lote">
+          <div className="section-heading">
+            <h1 id="novo-lote">Novo lote</h1>
+          </div>
+          <Card elevated main>
+            <div style={{ padding: 20 }}>
+              <div className="import-grid">
+                <div>
+                  <label className="ui-control-label">
+                    Conta Olist
+                    <Select
+                      value={account}
+                      onChange={(e) => setAccount(e.target.value as Account)}
+                    >
+                      {accounts.map((x) => (
+                        <option key={x}>{x}</option>
+                      ))}
+                    </Select>
+                  </label>
+                  <div style={{ marginTop: 16 }}>
+                    <span className="ui-control-label">Canal</span>
+                    <div
+                      className="channel-switch"
+                      role="group"
+                      aria-label="Canal"
+                      style={{ marginTop: 6 }}
+                    >
+                      <button
+                        className="channel-option channel-option--ml"
+                        aria-pressed={channel === "mercado-livre-full"}
+                        aria-describedby={files.length ? "marketplace-lock" : undefined}
+                        disabled={files.length > 0}
+                        onClick={() => setChannel("mercado-livre-full")}
+                      >
+                        Mercado Livre + Full
+                      </button>
+                      <button
+                        className="channel-option channel-option--shopee"
+                        aria-pressed={channel === "shopee"}
+                        aria-describedby={files.length ? "marketplace-lock" : undefined}
+                        disabled={files.length > 0}
+                        onClick={() => setChannel("shopee")}
+                      >
+                        Shopee
+                      </button>
+                    </div>
+                    {files.length > 0 && <span id="marketplace-lock" className="file-meta">Marketplace fixado para este lote.</span>}
+                  </div>
+                </div>
+                <FileDropzone onFiles={add} loading={loading} />
+              </div>
+              {loading && (
+                <div aria-live="polite" style={{ marginTop: 14 }}>
+                  <StatusBadge tone="info">Processando localmente</StatusBadge>
+                </div>
+              )}
+              {files.length > 0 && (
+                <div className="file-list" aria-live="polite">
+                  {files.map((file) => {
+                    const summary = aggregate(file.items).summary;
+                    return (
+                      <article className="file-row" key={file.id}>
+                        <div>
+                          <div className="file-name">{file.name}</div>
+                          <div className="file-meta">
+                            {file.account} · {channelLabel[file.channel]} ·{" "}
+                            {file.sheet} · {file.items.length} linhas ·{" "}
+                            {file.minDate ?? "—"} a {file.maxDate ?? "—"}
+                          </div>
+                          <div className="file-summary">
+                            Faturamento {formatMoney(summary.revenueCents)} ·
+                            Resultado {formatMoney(summary.resultCents)}
+                          </div>
+                        </div>
+                        <IconButton
+                          label={`Remover ${file.name}`}
+                          onClick={() =>
+                            setFiles((old) =>
+                              old.filter((x) => x.id !== file.id),
+                            )
+                          }
+                        >
+                          <Icon name="trash" />
+                        </IconButton>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </Card>
+        </section>
+        {files.length === 0 ? (
+          <Card className="section">
+            <EmptyState>Adicione uma planilha para começar.</EmptyState>
+          </Card>
+        ) : (
+          <section className="section" aria-label="Resultados">
+            {review && <ErrorBanner />}
+            <div style={{ marginTop: review ? 18 : 0 }}>
+              <Tabs
+                tabs={["Resumo", "Pedidos", "Itens", "Pendências"]}
+                value={tab}
+                onChange={setTab}
+              />
+            </div>
+            {tab === "Resumo" && (
+              <div className="section">
+                <div className="metric-grid">
+                  <MetricCard
+                    label="Faturamento"
+                    value={formatMoney(result.summary.revenueCents)}
+                  />
+                  <MetricCard
+                    label="CMV"
+                    value={formatMoney(result.summary.cmvCents)}
+                    detail={
+                      result.summary.zeroCostLines ? (
+                        <StatusBadge tone="warning">
+                          CMV incompleto · {result.summary.zeroCostLines} linhas
+                        </StatusBadge>
+                      ) : (
+                        ""
+                      )
+                    }
+                    tone={result.summary.zeroCostLines ? "warning" : undefined}
+                  />
+                  <MetricCard
+                    label="Comissão"
+                    value={formatMoney(result.summary.commissionCents)}
+                  />
+                  <MetricCard
+                    label="Frete pago pela empresa"
+                    value={formatMoney(result.summary.shippingCents)}
+                    detail="Shopee: incluído na comissão"
+                  />
+                  <MetricCard
+                    label="Resultado após custos"
+                    value={formatMoney(result.summary.resultCents)}
+                  />
+                  <MetricCard
+                    label="Margem após custos"
+                    value={`${result.summary.margin.toFixed(2).replace(".", ",")}%`}
+                  />
+                  <MetricCard
+                    label="Pedidos únicos"
+                    value={String(result.summary.orders)}
+                    detail={`${result.summary.multiLineOrders} pedidos multilinha`}
+                  />
+                  <MetricCard
+                    label="Linhas de itens"
+                    value={String(result.summary.items)}
+                  />
+                </div>
+                <div className="section">
+                  <div className="section-heading">
+                    <h2>Consolidação</h2>
+                  </div>
+                  <DataTable
+                    heads={[
+                      "Conta",
+                      "Canal",
+                      "Faturamento",
+                      "Resultado",
+                      "Pedidos",
+                    ]}
+                    rows={result.byGroup.map((x) => [
+                      x.account,
+                      channelLabel[x.channel as Channel],
+                      formatMoney(x.summary.revenueCents),
+                      formatMoney(x.summary.resultCents),
+                      x.summary.orders,
+                    ])}
+                    numeric={[2, 3, 4]}
+                  />
+                </div>
+              </div>
+            )}
+            {tab !== "Resumo" && (
+              <div className="section">
+                <div className="data-toolbar">
+                  <Input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder={
+                      tab === "Pendências"
+                        ? "Buscar pedido, produto ou tipo"
+                        : "Buscar"
+                    }
+                    aria-label="Buscar"
+                  />
+                  {tab === "Pendências" && (
+                    <Select
+                      value={severity}
+                      onChange={(e) =>
+                        setSeverity(e.target.value as Severity | "all")
+                      }
+                      aria-label="Severidade"
+                    >
+                      <option value="all">Todas as severidades</option>
+                      <option value="critical">Erros críticos</option>
+                      <option value="warning">Avisos</option>
+                      <option value="info">Informações</option>
+                    </Select>
+                  )}
+                  {tab !== "Pendências" && (
+                    <Button
+                      variant="secondary"
+                      onClick={() =>
+                        exportReport(
+                          result.summary,
+                          result.orders,
+                          allItems,
+                          result.issues,
+                        )
+                      }
+                    >
+                      <Icon name="download" />
+                      Exportar
+                    </Button>
+                  )}
+                </div>
+                {tab === "Pedidos" && (
+                  <DataTable
+                    heads={[
+                      "Pedido",
+                      "Data",
+                      "Faturamento",
+                      "CMV",
+                      "Comissão",
+                      "Frete",
+                      "Itens",
+                    ]}
+                    numeric={[2, 3, 4, 5, 6]}
+                    rows={orders.map((o) => [
+                      o.orderNumber,
+                      o.date ?? "—",
+                      formatMoney(o.revenueCents),
+                      formatMoney(o.cmvCents),
+                      formatMoney(o.commissionCents),
+                      o.channel === "shopee"
+                        ? "Incluído"
+                        : formatMoney(o.shippingCents),
+                      o.itemCount,
+                    ])}
+                    empty="Nenhum pedido encontrado."
+                  />
+                )}
+                {tab === "Itens" && (
+                  <DataTable
+                    heads={[
+                      "Pedido",
+                      "Produto",
+                      "Quantidade",
+                      "Custo unitário",
+                      "Comissão",
+                    ]}
+                    numeric={[2, 3, 4]}
+                    rows={items.map((i) => [
+                      i.orderNumber,
+                      i.product,
+                      i.quantity,
+                      formatMoney(i.unitCostCents),
+                      formatMoney(i.commissionCents),
+                    ])}
+                    empty="Nenhum item encontrado."
+                  />
+                )}
+                {tab === "Pendências" && (
+                  <Card>
+                    <div className="issue-list">
+                      {issues.length ? (
+                        issues.map((i, n) => (
+                          <article className="issue" key={`${i.type}-${n}`}>
+                            <StatusBadge tone={issueTone[i.severity]}>
+                              {i.severity === "critical"
+                                ? "Erro crítico"
+                                : i.severity === "warning"
+                                  ? "Aviso"
+                                  : "Informação"}
+                            </StatusBadge>
+                            <div>
+                              <div className="issue-title">{i.type}</div>
+                              <p className="issue-copy">{i.message}</p>
+                              <p className="issue-meta">
+                                {i.file ?? "—"} · Pedido {i.orderNumber ?? "—"}{" "}
+                                · Linha {i.line ?? "—"} · {i.impact}
+                              </p>
+                            </div>
+                          </article>
+                        ))
+                      ) : (
+                        <EmptyState>
+                          Nenhuma pendência com este filtro.
+                        </EmptyState>
+                      )}
+                    </div>
+                  </Card>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+        <footer className="footer">Dados processados neste dispositivo</footer>
+        {notice && (
+          <div className="ui-toast" role="status">
+            {notice}
+          </div>
+        )}
+      </main>
+    </div>
+  );
 }
-function DataTable({heads,rows,numeric=[],empty}:{heads:string[];rows:(string|number)[][];numeric?:number[];empty?:string}){return <div className="table-wrap">{rows.length?<table className="ui-table"><thead><tr>{heads.map((h,i)=><th className={numeric.includes(i)?"numeric":""} key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((row,i)=><tr key={i}>{row.map((cell,j)=><td className={numeric.includes(j)?"numeric":""} key={j}>{cell}</td>)}</tr>)}</tbody></table>:<EmptyState>{empty??"Sem dados."}</EmptyState>}</div>}
+function DataTable({
+  heads,
+  rows,
+  numeric = [],
+  empty,
+}: {
+  heads: string[];
+  rows: (string | number)[][];
+  numeric?: number[];
+  empty?: string;
+}) {
+  return (
+    <div className="table-wrap">
+      {rows.length ? (
+        <table className="ui-table">
+          <thead>
+            <tr>
+              {heads.map((h, i) => (
+                <th className={numeric.includes(i) ? "numeric" : ""} key={h}>
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={i}>
+                {row.map((cell, j) => (
+                  <td className={numeric.includes(j) ? "numeric" : ""} key={j}>
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <EmptyState>{empty ?? "Sem dados."}</EmptyState>
+      )}
+    </div>
+  );
+}
