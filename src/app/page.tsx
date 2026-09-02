@@ -264,6 +264,9 @@ export default function Home() {
                       "Conta",
                       "Canal",
                       "Faturamento",
+                      "CMV",
+                      "Comissão",
+                      "Frete pago pela empresa",
                       "Resultado",
                       "Pedidos",
                     ]}
@@ -271,10 +274,13 @@ export default function Home() {
                       x.account,
                       channelLabel[x.channel as Channel],
                       formatMoney(x.summary.revenueCents),
+                      formatMoney(x.summary.cmvCents),
+                      formatMoney(x.summary.commissionCents),
+                      x.channel === "shopee" ? "Incluído na comissão" : formatMoney(x.summary.shippingCents),
                       formatMoney(x.summary.resultCents),
                       x.summary.orders,
                     ])}
-                    numeric={[2, 3, 4]}
+                    numeric={[2, 3, 4, 5, 6, 7]}
                   />
                 </div>
               </div>
