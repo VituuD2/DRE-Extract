@@ -2,9 +2,9 @@ import * as XLSX from "xlsx";
 import { aggregate } from "@/domain/aggregate";
 import type { Channel, Issue, Item, Order, Summary } from "@/domain/types";
 
-const channels: Channel[] = ["mercado-livre-full", "shopee"];
-const labels: Record<Channel, string> = { "mercado-livre-full": "Mercado Livre", shopee: "Shopee" };
-const sheetPrefix: Record<Channel, string> = { "mercado-livre-full": "ML", shopee: "Shopee" };
+const channels: Channel[] = ["mercado-livre-full", "shopee", "shein"];
+const labels: Record<Channel, string> = { "mercado-livre-full": "Mercado Livre", shopee: "Shopee", shein: "Shein" };
+const sheetPrefix: Record<Channel, string> = { "mercado-livre-full": "ML", shopee: "Shopee", shein: "Shein" };
 const money = (cents: number | undefined) => (cents ?? 0) / 100;
 
 export function exportReport(_summary: Summary, orders: Order[], items: Item[], issues: Issue[]) {

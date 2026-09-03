@@ -1,4 +1,4 @@
-export type Channel = "mercado-livre-full" | "shopee";
+export type Channel = "mercado-livre-full" | "shopee" | "shein";
 export type Account = "Olist 1" | "Olist 2" | "Olist 3";
 export type Severity = "info" | "warning" | "critical";
 export type Issue = { severity: Severity; type: string; message: string; impact: string; file?: string; account?: Account; channel?: Channel; line?: number; orderNumber?: string; product?: string; field?: string; originalValue?: unknown };

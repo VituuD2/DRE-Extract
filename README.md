@@ -18,6 +18,7 @@ Abra `http://localhost:3000`, escolha a conta Olist e o canal antes de adicionar
 
 - Mercado Livre + Full: faturamento e frete (`frete empresa - frete cliente`) são deduplicados por pedido; CMV (`custo unitário × quantidade`) e comissão são somados por item.
 - Shopee: faturamento é deduplicado por pedido; CMV e comissão são por item; frete está incluído na comissão e nunca é abatido duas vezes.
+- Shein: faturamento é deduplicado por pedido; CMV e comissão são por item; frete de R$ 4,00 é abatido por linha do pedido.
 - Valores são tratados internamente como centavos inteiros. Datas são aceitas apenas como `DD/MM/AAAA`.
 - Divergências de valores de pedido, pedidos sem número e repetição entre arquivos deixam o resultado provisório. Custo zero é preservado, gera pendência e marca CMV incompleto.
 
@@ -30,7 +31,7 @@ Abra `http://localhost:3000`, escolha a conta Olist e o canal antes de adicionar
 
 ## Adaptadores futuros
 
-O tipo de canal e o motor foram separados da interface. Magalu, Shein e Site SoulBM não possuem regras implementadas: adicione um adaptador e testes quando suas regras forem confirmadas, sem alterar o agregador existente.
+O tipo de canal e o motor foram separados da interface. Magalu e Site SoulBM não possuem regras implementadas: adicione um adaptador e testes quando suas regras forem confirmadas, sem alterar o agregador existente.
 
 ## Privacidade e deploy
 

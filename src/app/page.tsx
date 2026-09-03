@@ -25,6 +25,7 @@ const accounts: Account[] = ["Olist 1", "Olist 2", "Olist 3"];
 const channelLabel: Record<Channel, string> = {
   "mercado-livre-full": "Mercado Livre + Full",
   shopee: "Shopee",
+  shein: "Shein",
 };
 const issueTone: Record<Severity, "info" | "warning" | "critical"> = {
   info: "info",
@@ -147,6 +148,14 @@ export default function Home() {
                       >
                         Shopee
                       </button>
+                      <button
+                        className="channel-option channel-option--shein"
+                        aria-pressed={channel === "shein"}
+                        onClick={() => setChannel("shein")}
+                        style={channel === "shein" ? { background: "#161616", borderColor: "#161616", color: "#fff" } : undefined}
+                      >
+                        Shein
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -240,7 +249,7 @@ export default function Home() {
                   <MetricCard
                     label="Frete pago pela empresa"
                     value={formatMoney(result.summary.shippingCents)}
-                    detail="Shopee: incluído na comissão"
+                    detail="Shopee: incluído na comissão · Shein: R$ 4,00 por linha"
                   />
                   <MetricCard
                     label="Resultado após custos"
